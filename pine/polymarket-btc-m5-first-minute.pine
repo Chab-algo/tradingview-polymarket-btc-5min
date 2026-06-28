@@ -1,0 +1,79 @@
+//@version=5
+// =============================================================================
+//  Polymarket BTC M5 — Signal "1ère minute"
+// =============================================================================
+//  Marché visé : Polymarket "Bitcoin Up or Down" sur fenêtre de 5 minutes.
+//
+//  Idée : sur un graphique BTC en M1, on regarde la PREMIÈRE bougie d'une minute
+//  de chaque fenêtre M5 (celle qui ouvre à :00, :05, :10, :15...).
+//    - 1ère bougie BULLISH (clôture > ouverture)  ->  BUY  (parier Up)
+//    - 1ère bougie BEARISH (clôture < ouverture)  ->  SELL (parier Down)
+//
+//  Indicateur purement VISUEL : il marque le signal, il ne backteste rien.
+//  ⚠️  À utiliser sur un graphique BTC en unité de temps 1 minute (M1).
+// =============================================================================
+indicator("Polymarket BTC M5 — Signal 1ère minute", overlay = true, max_labels_count = 500, max_lines_count = 500)
+
+// ----------------------------------------------------------------------------
+//  Inputs
+// ----------------------------------------------------------------------------
+grp        = "Visuel"
+showBg     = input.bool(true, "Colorer la fenêtre M5",      group = grp)
+showLabels = input.bool(true, "Afficher BUY / SELL",        group = grp)
+colorBar   = input.bool(true, "Colorer la 1ère bougie",     group = grp)
+showLine   = input.bool(true, "Séparateur de fenêtre M5",   group = grp)
+
+cBuy  = input.color(color.green, "Couleur BUY (bullish)",  group = grp)
+cSell = input.color(color.red,   "Couleur SELL (bearish)", group = grp)
+
+// ----------------------------------------------------------------------------
+//  Avertissement unité de temps
+// ----------------------------------------------------------------------------
+if barstate.islast and timeframe.period != "1"
+    label.new(bar_index, high, "⚠️ À utiliser en M1 (actuel : " + timeframe.period + ")", color = color.orange, textcolor = color.black, style = label.style_label_down, size = size.small)
+
+// ----------------------------------------------------------------------------
+//  Détection de la 1ère minute de chaque fenêtre M5
+//  timeframe.change("5") est vrai sur la 1ère bougie M1 d'une nouvelle
+//  fenêtre de 5 minutes (gère aussi les coupures de session).
+// ----------------------------------------------------------------------------
+isFirstMin = timeframe.change("5")
+firstBull  = isFirstMin and close > open
+firstBear  = isFirstMin and close < open
+
+// Mémorise le signal courant pour TOUTE la fenêtre M5 (jusqu'à la prochaine).
+var int sig = 0                       // 1 = BUY, -1 = SELL, 0 = neutre (doji)
+if isFirstMin
+    sig := firstBull ? 1 : firstBear ? -1 : 0
+
+// ----------------------------------------------------------------------------
+//  Fond coloré sur toute la fenêtre M5
+// ----------------------------------------------------------------------------
+bg = not showBg ? na : sig == 1 ? color.new(cBuy, 88) : sig == -1 ? color.new(cSell, 88) : na
+bgcolor(bg, title = "Fenêtre M5")
+
+// ----------------------------------------------------------------------------
+//  Colore la 1ère bougie de la fenêtre
+// ----------------------------------------------------------------------------
+bc = (not colorBar or not isFirstMin) ? na : firstBull ? cBuy : firstBear ? cSell : color.gray
+barcolor(bc, title = "1ère bougie")
+
+// ----------------------------------------------------------------------------
+//  Séparateur vertical au début de chaque fenêtre
+// ----------------------------------------------------------------------------
+if showLine and isFirstMin
+    line.new(bar_index, low, bar_index, high, xloc = xloc.bar_index, extend = extend.both, color = color.new(color.gray, 50), style = line.style_dotted)
+
+// ----------------------------------------------------------------------------
+//  Labels BUY / SELL sur la 1ère bougie
+// ----------------------------------------------------------------------------
+if showLabels and firstBull
+    label.new(bar_index, low,  "BUY",  yloc = yloc.belowbar, style = label.style_label_up,   color = cBuy,  textcolor = color.white, size = size.small)
+if showLabels and firstBear
+    label.new(bar_index, high, "SELL", yloc = yloc.abovebar, style = label.style_label_down, color = cSell, textcolor = color.white, size = size.small)
+
+// ----------------------------------------------------------------------------
+//  Alertes (signal confirmé à la clôture de la 1ère minute)
+// ----------------------------------------------------------------------------
+alertcondition(firstBull, "BUY — 1ère minute bullish",  "BTC M5 : 1ère minute BULLISH → BUY (Up)")
+alertcondition(firstBear, "SELL — 1ère minute bearish", "BTC M5 : 1ère minute BEARISH → SELL (Down)")
