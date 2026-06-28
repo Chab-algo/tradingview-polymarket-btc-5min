@@ -1,0 +1,25 @@
+# Secrets / config locale
+.env
+.env.*
+*.key
+*.pem
+secrets.json
+
+# Dépendances
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Logs
+*.log
+logs/
+
+# OS / éditeurs
+.DS_Store
+.vscode/
+.idea/
+
+# Outils
+.claude/
