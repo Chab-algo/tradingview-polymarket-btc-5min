@@ -1,47 +1,36 @@
 # tradingview-polymarket-btc-5min
 
-Indicateur **Pine Script (TradingView)** pour **backtester une stratégie de pari BTC up/down sur 5 minutes**, façon marché binaire **Polymarket**.
+Indicateur **Pine Script (TradingView)**, purement **visuel**, pour le marché **Polymarket « Bitcoin Up or Down » sur 5 minutes**.
 
-## Pourquoi un moteur de backtest custom
+## Idée
 
-Polymarket up/down est un pari **binaire** : on achète une part « Up » (ou « Down ») à un prix `p` compris entre 0 et 1.
+Sur un graphique **BTC en M1**, on regarde la **première bougie d'une minute** de chaque fenêtre M5 (celle qui ouvre à :00, :05, :10, :15…) :
 
-- Si on a **raison** → la part vaut 1$ → gain net = `mise × (1/p − 1)`
-- Si on a **tort** → la part vaut 0$ → perte = `mise`
+- 1ère bougie **bullish** (clôture > ouverture) → **BUY** (parier *Up*)
+- 1ère bougie **bearish** (clôture < ouverture) → **SELL** (parier *Down*)
 
-Le seuil de rentabilité (breakeven) en taux de réussite est exactement `p`. Le backtester natif de TradingView raisonne en P&L de prix, pas en payout binaire — d'où un moteur de backtest binaire intégré directement dans l'indicateur.
+L'indicateur **marque** simplement ce signal à l'écran. Ce n'est **pas** une stratégie et il ne backteste rien.
 
 ## Fichier
 
-- [`pine/btc-polymarket-5min-backtest.pine`](pine/btc-polymarket-5min-backtest.pine) — indicateur + moteur de backtest.
+- [`pine/polymarket-btc-m5-first-minute.pine`](pine/polymarket-btc-m5-first-minute.pine)
 
 ## Utilisation
 
-1. Ouvrir un graphique **BTC** sur TradingView en unité de temps **5 minutes**.
-2. Pine Editor → coller le contenu de `pine/btc-polymarket-5min-backtest.pine` → *Add to chart*.
-3. Régler les paramètres dans les réglages de l'indicateur :
-   - **Modèle Polymarket** : bankroll initiale, mise par round, prix d'entrée (odds), frais.
-   - **Signal de prédiction** : mode (EMA momentum / RSI / suivi de bougie / contre-tendance) et ses paramètres.
-4. Lire le tableau de stats en haut à droite : rounds, win rate, breakeven, **edge**, bankroll, P&L, ROI.
+1. Ouvrir un graphique **BTC** en **M1** sur TradingView.
+2. Pine Editor → coller le contenu du fichier → *Add to chart*.
+3. Régler les options visuelles si besoin (couleurs, fond, labels, séparateur).
 
-> 💡 La stratégie est rentable uniquement si le **win rate > breakeven** (= prix d'entrée). L'**edge** affiché doit être positif.
+## Visuels
 
-## Modes de signal
+- **Fond coloré** sur toute la fenêtre M5 (vert = BUY, rouge = SELL).
+- **1ère bougie colorée** selon son sens.
+- **Label BUY / SELL** sur la 1ère bougie.
+- **Séparateur vertical** au début de chaque fenêtre M5.
+- **Alertes** BUY / SELL (déclenchées à la clôture de la 1ère minute).
 
-| Mode | Prédiction pour la prochaine bougie |
-|------|-------------------------------------|
-| EMA momentum | Up si EMA rapide > EMA lente |
-| RSI | Up si RSI > seuil |
-| Suivi de bougie | Up si la bougie courante est Up (momentum) |
-| Contre-tendance | Up si la bougie courante est Down (mean reversion) |
-
-La résolution se fait **sans lookahead** : la prédiction calculée à la bougie `t-1` est confrontée au sens réel de la bougie `t`.
+> Le signal se confirme à la **clôture de la 1ère minute** : il reste alors 4 minutes pour placer le pari sur Polymarket.
 
 ## Workflow
 
 - Chaque modification fait l'objet d'un **commit dédié**, poussé au fur et à mesure.
-
-## À venir
-
-- Nouveaux modes de signal et filtres (volatilité, sessions horaires).
-- Gestion de mise variable (Kelly, martingale, etc.).
