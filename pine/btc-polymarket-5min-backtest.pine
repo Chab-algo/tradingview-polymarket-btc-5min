@@ -1,0 +1,143 @@
+//@version=5
+// =============================================================================
+//  BTC Polymarket 5min — Backtest d'une stratégie de prédiction Up/Down
+// =============================================================================
+//  Objectif : backtester une stratégie de pari "BTC monte ou descend" sur la
+//  prochaine bougie de 5 minutes, façon marché binaire Polymarket.
+//
+//  Modèle Polymarket : on achète une part "Up" (ou "Down") à un prix p (0..1).
+//  - Si on a raison  -> la part vaut 1$  => gain net = mise * (1/p - 1)
+//  - Si on a tort    -> la part vaut 0$  => perte    = mise
+//  Le seuil de rentabilité (breakeven) en taux de réussite est exactement p.
+//
+//  ⚠️  A utiliser sur un graphique BTC en unité de temps 5 minutes.
+// =============================================================================
+indicator("BTC Polymarket 5min Backtest", overlay = true, max_labels_count = 500)
+
+// ----------------------------------------------------------------------------
+//  Inputs — Modèle Polymarket
+// ----------------------------------------------------------------------------
+grpPM      = "Modèle Polymarket"
+startBank  = input.float(1000.0, "Bankroll initiale ($)",            minval = 0.0,  group = grpPM)
+betSize    = input.float(10.0,   "Mise par round ($)",               minval = 0.0,  group = grpPM)
+entryPrice = input.float(0.50,   "Prix d'entrée moyen (odds 0-1)",   minval = 0.01, maxval = 0.99, step = 0.01, group = grpPM, tooltip = "Prix payé pour la part Up/Down. 0.50 = pari à parité. Le taux de réussite minimal pour être rentable est égal à ce prix.")
+feePct     = input.float(0.0,    "Frais par round (% de la mise)",   minval = 0.0,  group = grpPM)
+
+// ----------------------------------------------------------------------------
+//  Inputs — Signal de prédiction
+// ----------------------------------------------------------------------------
+grpSig  = "Signal de prédiction"
+sigMode = input.string("EMA momentum", "Mode de signal", options = ["EMA momentum", "RSI", "Suivi de bougie", "Contre-tendance"], group = grpSig)
+emaFast = input.int(9,    "EMA rapide",   minval = 1, group = grpSig)
+emaSlow = input.int(21,   "EMA lente",    minval = 1, group = grpSig)
+rsiLen  = input.int(14,   "RSI longueur", minval = 1, group = grpSig)
+rsiMid  = input.float(50, "RSI seuil",    minval = 0, maxval = 100, group = grpSig)
+
+// ----------------------------------------------------------------------------
+//  Inputs — Affichage
+// ----------------------------------------------------------------------------
+grpUI       = "Affichage"
+showEmas    = input.bool(true, "Afficher les EMA",         group = grpUI)
+showMarkers = input.bool(true, "Afficher gains/pertes",    group = grpUI)
+showTable   = input.bool(true, "Afficher le tableau stats", group = grpUI)
+
+// ----------------------------------------------------------------------------
+//  Avertissement unité de temps
+// ----------------------------------------------------------------------------
+is5min = timeframe.period == "5"
+if barstate.islast and not is5min
+    label.new(bar_index, high, "⚠️ Conçu pour le 5 min (actuel : " + timeframe.period + ")", color = color.orange, textcolor = color.black, style = label.style_label_down, size = size.small)
+
+// ----------------------------------------------------------------------------
+//  Indicateurs
+// ----------------------------------------------------------------------------
+ema1 = ta.ema(close, emaFast)
+ema2 = ta.ema(close, emaSlow)
+rsi  = ta.rsi(close, rsiLen)
+
+// Sens réel de la bougie courante (Up si la clôture > ouverture)
+candleUp = close > open
+
+// Prédiction pour la PROCHAINE bougie, calculée à partir des infos dispo
+// au moment de la décision (clôture de la bougie courante). Pas de lookahead.
+predUp = switch sigMode
+    "EMA momentum"    => ema1 > ema2
+    "RSI"             => rsi > rsiMid
+    "Suivi de bougie" => candleUp
+    "Contre-tendance" => not candleUp
+    => true
+
+// ----------------------------------------------------------------------------
+//  Résolution du round : la prédiction faite à la bougie précédente est
+//  confrontée au sens réel de la bougie courante.
+// ----------------------------------------------------------------------------
+hasPred     = not na(predUp[1])
+predictedUp = predUp[1]
+win         = hasPred and (predictedUp == candleUp)
+
+// ----------------------------------------------------------------------------
+//  Moteur de backtest (payout binaire)
+// ----------------------------------------------------------------------------
+profitPerWin = betSize * (1.0 / entryPrice - 1.0)
+fee          = betSize * feePct / 100.0
+
+var float bank   = startBank
+var int   trades = 0
+var int   wins   = 0
+
+if hasPred and barstate.isconfirmed
+    trades += 1
+    if win
+        wins += 1
+        bank += profitPerWin - fee
+    else
+        bank -= betSize + fee
+
+losses    = trades - wins
+winRate   = trades > 0 ? wins / trades * 100.0 : 0.0
+breakeven = entryPrice * 100.0
+edge      = winRate - breakeven
+pnl       = bank - startBank
+roi       = startBank > 0 ? pnl / startBank * 100.0 : 0.0
+
+// ----------------------------------------------------------------------------
+//  Visuels
+// ----------------------------------------------------------------------------
+plot(showEmas ? ema1 : na, "EMA rapide", color = color.new(color.aqua,   0))
+plot(showEmas ? ema2 : na, "EMA lente",  color = color.new(color.orange, 0))
+
+plotshape(showMarkers and hasPred and win,       title = "Gagné", style = shape.triangleup,   location = location.belowbar, color = color.new(color.green, 0), size = size.tiny)
+plotshape(showMarkers and hasPred and not win,   title = "Perdu", style = shape.triangledown, location = location.abovebar, color = color.new(color.red,   0), size = size.tiny)
+
+// ----------------------------------------------------------------------------
+//  Tableau de stats
+// ----------------------------------------------------------------------------
+if showTable and barstate.islast
+    var table t = table.new(position.top_right, 2, 9, border_width = 1, frame_width = 1, frame_color = color.gray)
+    bg = color.new(color.black, 80)
+    table.cell(t, 0, 0, "BTC Polymarket 5min", text_color = color.white, bgcolor = color.new(color.blue, 20), text_size = size.normal)
+    table.cell(t, 1, 0, sigMode,               text_color = color.white, bgcolor = color.new(color.blue, 20), text_size = size.normal)
+
+    table.cell(t, 0, 1, "Rounds",   text_color = color.white, bgcolor = bg)
+    table.cell(t, 1, 1, str.tostring(trades), text_color = color.white, bgcolor = bg)
+
+    table.cell(t, 0, 2, "Gagnés / Perdus", text_color = color.white, bgcolor = bg)
+    table.cell(t, 1, 2, str.tostring(wins) + " / " + str.tostring(losses), text_color = color.white, bgcolor = bg)
+
+    table.cell(t, 0, 3, "Win rate", text_color = color.white, bgcolor = bg)
+    table.cell(t, 1, 3, str.tostring(winRate, "#.##") + " %", text_color = color.white, bgcolor = bg)
+
+    table.cell(t, 0, 4, "Breakeven (odds)", text_color = color.white, bgcolor = bg)
+    table.cell(t, 1, 4, str.tostring(breakeven, "#.##") + " %", text_color = color.white, bgcolor = bg)
+
+    table.cell(t, 0, 5, "Edge", text_color = color.white, bgcolor = bg)
+    table.cell(t, 1, 5, str.tostring(edge, "#.##") + " %", text_color = edge >= 0 ? color.lime : color.red, bgcolor = bg)
+
+    table.cell(t, 0, 6, "Bankroll", text_color = color.white, bgcolor = bg)
+    table.cell(t, 1, 6, "$" + str.tostring(bank, "#.##"), text_color = color.white, bgcolor = bg)
+
+    table.cell(t, 0, 7, "P&L", text_color = color.white, bgcolor = bg)
+    table.cell(t, 1, 7, "$" + str.tostring(pnl, "#.##"), text_color = pnl >= 0 ? color.lime : color.red, bgcolor = bg)
+
+    table.cell(t, 0, 8, "ROI", text_color = color.white, bgcolor = bg)
+    table.cell(t, 1, 8, str.tostring(roi, "#.##") + " %", text_color = roi >= 0 ? color.lime : color.red, bgcolor = bg)
