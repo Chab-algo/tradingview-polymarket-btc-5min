@@ -9,7 +9,12 @@ Sur un graphique **BTC en M1**, on regarde la **première bougie d'une minute** 
 - 1ère bougie **bullish** (clôture > ouverture) → **BUY** (parier *Up*)
 - 1ère bougie **bearish** (clôture < ouverture) → **SELL** (parier *Down*)
 
-L'indicateur **marque** simplement ce signal à l'écran. Ce n'est **pas** une stratégie et il ne backteste rien.
+Puis, au bout des 5 minutes, la fenêtre est **résolue** (clôture de la fenêtre vs son ouverture). Le **fond de la fenêtre** se colorie alors selon le résultat du pari :
+
+- **Vert** si le pari a gagné (résolu dans le bon sens du BUY/SELL)
+- **Rouge** si le pari a perdu
+
+Ce n'est **pas** une stratégie et il ne backteste rien : c'est un indicateur visuel.
 
 ## Fichier
 
@@ -23,12 +28,15 @@ L'indicateur **marque** simplement ce signal à l'écran. Ce n'est **pas** une s
 
 ## Visuels
 
-- **1ère bougie colorée** selon son sens (vert = BUY, rouge = SELL) + fond coloré **uniquement** sur cette 1ère bougie.
+- **Fond de la fenêtre M5** coloré selon le **résultat** : vert = pari gagné, rouge = pari perdu.
+- **1ère bougie colorée** selon le **signal** (vert = BUY, rouge = SELL).
 - **Label BUY / SELL** sur la 1ère bougie.
 - **Séparateur vertical** au début de chaque fenêtre M5.
 - **Alertes** BUY / SELL (déclenchées à la clôture de la 1ère minute).
 
 > Le signal se confirme à la **clôture de la 1ère minute** : il reste alors 4 minutes pour placer le pari sur Polymarket.
+>
+> Le fond « résultat » est **rétrospectif** : une fenêtre se colorie quand la suivante démarre (son issue n'est connue qu'à la fin des 5 minutes). Conçu pour BTC 24/7 (5 bougies M1 par fenêtre M5).
 
 ## Workflow
 

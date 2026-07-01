@@ -1,6 +1,6 @@
 //@version=5
 // =============================================================================
-//  Polymarket BTC M5 — Signal "1ère minute"
+//  Polymarket BTC M5 — Signal "1ère minute" + résultat de résolution
 // =============================================================================
 //  Marché visé : Polymarket "Bitcoin Up or Down" sur fenêtre de 5 minutes.
 //
@@ -9,7 +9,14 @@
 //    - 1ère bougie BULLISH (clôture > ouverture)  ->  BUY  (parier Up)
 //    - 1ère bougie BEARISH (clôture < ouverture)  ->  SELL (parier Down)
 //
-//  Indicateur purement VISUEL : il marque le signal, il ne backteste rien.
+//  Résultat : au bout des 5 minutes, la fenêtre est résolue Up ou Down
+//  (clôture de la fenêtre vs son ouverture). Le FOND de la fenêtre est colorié :
+//    - VERT  si le pari a gagné (résolu dans le bon sens du BUY/SELL)
+//    - ROUGE si le pari a perdu
+//  Le fond est RÉTROSPECTIF : une fenêtre se colorie quand la suivante démarre
+//  (son résultat n'est connu qu'à la clôture des 5 minutes).
+//
+//  Indicateur purement VISUEL. Conçu pour BTC 24/7 (5 bougies M1 par fenêtre M5).
 //  ⚠️  À utiliser sur un graphique BTC en unité de temps 1 minute (M1).
 // =============================================================================
 indicator("Polymarket BTC M5 — Signal 1ère minute", overlay = true, max_labels_count = 500, max_lines_count = 500)
@@ -17,14 +24,16 @@ indicator("Polymarket BTC M5 — Signal 1ère minute", overlay = true, max_label
 // ----------------------------------------------------------------------------
 //  Inputs
 // ----------------------------------------------------------------------------
-grp        = "Visuel"
-showBg     = input.bool(true, "Colorer le fond de la 1ère bougie", group = grp)
-showLabels = input.bool(true, "Afficher BUY / SELL",        group = grp)
-colorBar   = input.bool(true, "Colorer la 1ère bougie",     group = grp)
-showLine   = input.bool(true, "Séparateur de fenêtre M5",   group = grp)
+grp          = "Visuel"
+showResultBg = input.bool(true, "Fond de la fenêtre selon résultat (5 min)", group = grp)
+showLabels   = input.bool(true, "Afficher BUY / SELL",              group = grp)
+colorBar     = input.bool(true, "Colorer la 1ère bougie (signal)",  group = grp)
+showLine     = input.bool(true, "Séparateur de fenêtre M5",         group = grp)
 
-cBuy  = input.color(color.green, "Couleur BUY (bullish)",  group = grp)
-cSell = input.color(color.red,   "Couleur SELL (bearish)", group = grp)
+cBuy    = input.color(color.green, "Signal BUY (1ère bougie bullish)",  group = grp)
+cSell   = input.color(color.red,   "Signal SELL (1ère bougie bearish)", group = grp)
+colWin  = input.color(color.new(color.green, 78), "Fond GAGNÉ (résolu OK)", group = grp)
+colLoss = input.color(color.new(color.red,   78), "Fond PERDU (résolu KO)", group = grp)
 
 // ----------------------------------------------------------------------------
 //  Avertissement unité de temps
@@ -34,24 +43,40 @@ if barstate.islast and timeframe.period != "1"
 
 // ----------------------------------------------------------------------------
 //  Détection de la 1ère minute de chaque fenêtre M5
-//  timeframe.change("5") est vrai sur la 1ère bougie M1 d'une nouvelle
-//  fenêtre de 5 minutes (gère aussi les coupures de session).
 // ----------------------------------------------------------------------------
 isFirstMin = timeframe.change("5")
 firstBull  = isFirstMin and close > open
 firstBear  = isFirstMin and close < open
 
 // ----------------------------------------------------------------------------
-//  Fond coloré UNIQUEMENT sur la 1ère bougie de la fenêtre M5
+//  Suivi de la fenêtre M5 pour calculer sa résolution (Up/Down au bout des 5 min)
 // ----------------------------------------------------------------------------
-bg = (not showBg or not isFirstMin) ? na : firstBull ? color.new(cBuy, 80) : firstBear ? color.new(cSell, 80) : na
-bgcolor(bg, title = "Fond 1ère bougie")
+var float winOpen  = na          // ouverture de la fenêtre (open de la 1ère bougie)
+var bool  winIsBuy = na          // sens du pari : true=BUY, false=SELL, na=pas de pari (doji)
+
+// Résolution de la fenêtre PRÉCÉDENTE, connue au moment où une nouvelle démarre.
+prevUp  = close[1] > winOpen                                   // la fenêtre précédente a clôturé en hausse ?
+prevWin = na(winIsBuy) or na(winOpen) ? na : winIsBuy == prevUp // pari gagné ? (BUY&Up ou SELL&Down)
+resCol  = isFirstMin and not na(prevWin) ? (prevWin ? colWin : colLoss) : na
+
+// Colorie le fond des 5 bougies de la fenêtre précédente (5 bougies M1 par fenêtre M5).
+bgCol = showResultBg ? resCol : na
+bgcolor(bgCol, offset = -1, title = "Résultat -1")
+bgcolor(bgCol, offset = -2, title = "Résultat -2")
+bgcolor(bgCol, offset = -3, title = "Résultat -3")
+bgcolor(bgCol, offset = -4, title = "Résultat -4")
+bgcolor(bgCol, offset = -5, title = "Résultat -5")
+
+// Met à jour le suivi pour la NOUVELLE fenêtre.
+if isFirstMin
+    winOpen  := open
+    winIsBuy := firstBull ? true : firstBear ? false : na
 
 // ----------------------------------------------------------------------------
-//  Colore la 1ère bougie de la fenêtre
+//  Colore la 1ère bougie selon le signal (sens du pari)
 // ----------------------------------------------------------------------------
-bc = (not colorBar or not isFirstMin) ? na : firstBull ? cBuy : firstBear ? cSell : color.gray
-barcolor(bc, title = "1ère bougie")
+bc = not colorBar or not isFirstMin ? na : firstBull ? cBuy : firstBear ? cSell : color.gray
+barcolor(bc, title = "1ère bougie (signal)")
 
 // ----------------------------------------------------------------------------
 //  Séparateur vertical au début de chaque fenêtre
