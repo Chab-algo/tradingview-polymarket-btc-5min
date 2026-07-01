@@ -23,8 +23,7 @@ L'indicateur **marque** simplement ce signal à l'écran. Ce n'est **pas** une s
 
 ## Visuels
 
-- **Fond coloré** sur toute la fenêtre M5 (vert = BUY, rouge = SELL).
-- **1ère bougie colorée** selon son sens.
+- **1ère bougie colorée** selon son sens (vert = BUY, rouge = SELL) + fond coloré **uniquement** sur cette 1ère bougie.
 - **Label BUY / SELL** sur la 1ère bougie.
 - **Séparateur vertical** au début de chaque fenêtre M5.
 - **Alertes** BUY / SELL (déclenchées à la clôture de la 1ère minute).
